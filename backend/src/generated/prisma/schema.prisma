@@ -1,0 +1,52 @@
+generator client {
+  provider = "prisma-client-js"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        String            @id @default(cuid())
+  email     String            @unique
+  password  String
+  name      String
+  createdAt DateTime          @default(now())
+  rooms     RoomParticipant[]
+  documents Document[]
+}
+
+model Room {
+  id           String            @id @default(cuid())
+  name         String
+  code         String            @unique
+  language     String            @default("javascript")
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+  participants RoomParticipant[]
+  document     Document?
+}
+
+model RoomParticipant {
+  id       String   @id @default(cuid())
+  userId   String
+  roomId   String
+  joinedAt DateTime @default(now())
+  user     User     @relation(fields: [userId], references: [id])
+  room     Room     @relation(fields: [roomId], references: [id])
+
+  @@unique([userId, roomId])
+}
+
+model Document {
+  id        String   @id @default(cuid())
+  content   String   @default("")
+  version   Int      @default(0)
+  roomId    String   @unique
+  userId    String
+  updatedAt DateTime @updatedAt
+  room      Room     @relation(fields: [roomId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
+}
