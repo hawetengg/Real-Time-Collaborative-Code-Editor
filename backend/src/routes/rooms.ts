@@ -1,5 +1,6 @@
 import { Router } from 'express'
 import { PrismaClient } from '@prisma/client'
+// import { PrismaClient } from '../generated/prisma/index.js'
 import { verifyToken } from '../middleware/auth.js'
 import type { Request, Response, NextFunction } from 'express'
 

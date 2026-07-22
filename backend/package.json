@@ -2,11 +2,11 @@
   "name": "backend",
   "version": "1.0.0",
   "main": "index.js",
- "scripts": {
-  "dev": "dotenvx run -- nodemon --exec tsx src/index.ts",
-  "build": "tsc",
-  "start": "node dist/src/index.js"
-},
+  "scripts": {
+    "dev": "dotenvx run -- nodemon --exec tsx src/index.ts",
+    "build": "tsc",
+    "start": "node dist/src/index.js"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",
@@ -14,6 +14,7 @@
   "dependencies": {
     "@dotenvx/dotenvx": "^1.69.1",
     "@prisma/client": "^6.19.3",
+    "@prisma/engines": "^7.9.0",
     "bcryptjs": "^3.0.3",
     "cors": "^2.8.6",
     "dotenv": "^17.4.2",
