@@ -5,6 +5,7 @@ import cors from 'cors'
 import dotenv from 'dotenv'
 import authRoutes from './routes/auth.js'
 import roomRoutes from './routes/rooms.js'
+import setupSocketHandlers from './socket/handlers.js'
 
 dotenv.config()
 
@@ -28,13 +29,15 @@ app.get('/api/health', (_, res) => {
   res.json({ status: 'ok', message: 'Server is running' })
 })
 
-io.on('connection', (socket) => {
-  console.log(`User connected: ${socket.id}`)
+setupSocketHandlers(io)
 
-  socket.on('disconnect', () => {
-    console.log(`User disconnected: ${socket.id}`)
-  })
-})
+// io.on('connection', (socket) => {
+//   console.log(`User connected: ${socket.id}`)
+
+//   socket.on('disconnect', () => {
+//     console.log(`User disconnected: ${socket.id}`)
+//   })
+// })
 
 const PORT = process.env['PORT'] || 5000
 httpServer.listen(PORT, () => {
