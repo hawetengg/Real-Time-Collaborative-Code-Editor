@@ -25,6 +25,7 @@ export default function DashboardPage() {
   const [newRoomLanguage, setNewRoomLanguage] = useState("javascript");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading && !token) {
@@ -55,11 +56,11 @@ export default function DashboardPage() {
     setCreateError(null);
 
     try {
-      const newRoom = await apiFetch("/rooms/create", token, {
+      const data = await apiFetch("/rooms/create", token, {
         method: "POST",
         body: JSON.stringify({ name: newRoomName, language: newRoomLanguage }),
       });
-      setRooms((prev) => [newRoom, ...prev]);
+      setRooms((prev) => [data.room, ...prev]);
       setNewRoomName("");
       setShowCreateForm(false);
     } catch (err: any) {
@@ -67,6 +68,12 @@ export default function DashboardPage() {
     } finally {
       setCreating(false);
     }
+  };
+
+  const handleCopyLink = (roomId: string) => {
+    navigator.clipboard.writeText(`${window.location.origin}/room/${roomId}`);
+    setCopiedId(roomId);
+    setTimeout(() => setCopiedId(null), 2000);
   };
 
   if (isLoading) {
@@ -178,12 +185,20 @@ export default function DashboardPage() {
                   {new Date(room.createdAt).toLocaleDateString()}
                 </p>
               </div>
-              <button
-                onClick={() => router.push(`/room/${room.id}`)}
-                className="text-sm text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
-              >
-                Join
-              </button>
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => handleCopyLink(room.id)}
+                  className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+                >
+                  {copiedId === room.id ? "Copied!" : "Copy link"}
+                </button>
+                <button
+                  onClick={() => router.push(`/room/${room.id}`)}
+                  className="text-sm text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+                >
+                  Join
+                </button>
+              </div>
             </div>
           ))}
         </div>

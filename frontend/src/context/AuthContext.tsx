@@ -28,11 +28,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
-  // Load token from localStorage on mount
   useEffect(() => {
     const savedToken = localStorage.getItem("auth_token");
-    if (savedToken) {
+    const savedUser = localStorage.getItem("auth_user");
+    if (savedToken && savedUser) {
       setToken(savedToken);
+      setUser(JSON.parse(savedUser));
     }
     setIsLoading(false);
   }, []);
@@ -53,6 +54,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(data.user);
       setToken(data.token);
       localStorage.setItem("auth_token", data.token);
+      localStorage.setItem("auth_user", JSON.stringify(data.user));
       router.push("/dashboard");
     } catch (error) {
       console.error(error);
@@ -76,6 +78,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
       setUser(data.user);
       setToken(data.token);
       localStorage.setItem("auth_token", data.token);
+      localStorage.setItem("auth_user", JSON.stringify(data.user));
       router.push("/dashboard");
     } catch (error) {
       console.error(error);
@@ -87,6 +90,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({
     setUser(null);
     setToken(null);
     localStorage.removeItem("auth_token");
+    localStorage.removeItem("auth_user");
     router.push("/");
   };
 

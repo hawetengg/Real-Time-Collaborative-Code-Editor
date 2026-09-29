@@ -1,6 +1,5 @@
 import { Router } from 'express'
 import { PrismaClient } from '@prisma/client'
-// import { PrismaClient } from '../generated/prisma/index.js'
 import { verifyToken } from '../middleware/auth.js'
 import type { Request, Response, NextFunction } from 'express'
 
@@ -98,10 +97,12 @@ router.get('/:id', verifyToken as any, async (req: AuthRequest, res) => {
       return res.status(404).json({ error: 'Room not found' })
     }
 
-    const isParticipant = room.participants.some((p:any) => p.userId === userId)
+    const isParticipant = room.participants.some((p: any) => p.userId === userId)
 
     if (!isParticipant) {
-      return res.status(403).json({ error: 'Not a participant in this room' })
+      await prisma.roomParticipant.create({
+        data: { userId, roomId: room.id }
+      })
     }
 
     res.json(room)
@@ -120,7 +121,7 @@ router.get('/', verifyToken as any, async (req: AuthRequest, res) => {
       include: { room: true }
     })
 
-    const rooms = participations.map((p:any) => p.room)
+    const rooms = participations.map((p: any) => p.room)
 
     res.json(rooms)
   } catch (error) {
