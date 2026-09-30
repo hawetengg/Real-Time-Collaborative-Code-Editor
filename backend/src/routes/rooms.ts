@@ -139,6 +139,34 @@ router.delete('/:id', verifyToken as any, async (req: AuthRequest, res) => {
   }
 })
 
+router.delete('/:id/leave', verifyToken as any, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params
+    const userId = req.userId!
+
+    const room = await prisma.room.findUnique({ where: { id } })
+
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' })
+    }
+
+    if (room.creatorId === userId) {
+      return res.status(400).json({ error: 'Creators cannot leave their own room. Delete it instead.' })
+    }
+
+    await prisma.roomParticipant.delete({
+      where: {
+        userId_roomId: { userId, roomId: id }
+      }
+    })
+
+    res.json({ message: 'Left room successfully' })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ error: 'Failed to leave room' })
+  }
+})
+
 router.get('/:id', verifyToken as any, async (req: AuthRequest, res) => {
   try {
     const { id } = req.params

@@ -25,7 +25,7 @@ export default function RoomPage() {
   const router = useRouter();
 
   const [room, setRoom] = useState<RoomData | null>(null);
-  const [code, setCode] = useState("// Start coding here...");
+  const [code, setCode] = useState("");
   const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([]);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -85,8 +85,9 @@ export default function RoomPage() {
     socket.on(
       "room-state",
       (data: { code: string; users: ConnectedUser[] }) => {
-        setCode(data.code);
-        codeRef.current = data.code;
+        const initialCode = data.code || "// Start coding here...";
+        setCode(initialCode);
+        codeRef.current = initialCode;
         setConnectedUsers(data.users);
       },
     );
@@ -105,12 +106,20 @@ export default function RoomPage() {
       setTypingUsers((prev) => prev.filter((name) => name !== data.userId));
     });
 
+    const typingTimers: Record<string, NodeJS.Timeout> = {};
+
     socket.on("user-typing", (data: { name: string }) => {
       setTypingUsers((prev) =>
         prev.includes(data.name) ? prev : [...prev, data.name],
       );
-      setTimeout(() => {
+
+      if (typingTimers[data.name]) {
+        clearTimeout(typingTimers[data.name]);
+      }
+
+      typingTimers[data.name] = setTimeout(() => {
         setTypingUsers((prev) => prev.filter((n) => n !== data.name));
+        delete typingTimers[data.name];
       }, 2000);
     });
 

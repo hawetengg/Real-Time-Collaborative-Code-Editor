@@ -39,22 +39,23 @@ export default function DashboardPage() {
     }
   }, [isLoading, token, router]);
 
-  useEffect(() => {
-    if (!token) return;
+    useEffect(() => {
+      if (!token) return;
 
-    const fetchRooms = async () => {
-      try {
-        const data = await apiFetch("/rooms", token);
-        setRooms(data);
-      } catch (err: any) {
-        setRoomsError(err.message);
-      } finally {
-        setRoomsLoading(false);
-      }
-    };
+      setRoomsLoading(true);
+      const fetchRooms = async () => {
+        try {
+          const data = await apiFetch("/rooms", token);
+          setRooms(data);
+        } catch (err: any) {
+          setRoomsError(err.message);
+        } finally {
+          setRoomsLoading(false);
+        }
+      };
 
-    fetchRooms();
-  }, [token]);
+      fetchRooms();
+    }, [token, isLoading]);
 
   const handleCreateRoom = async () => {
     if (!newRoomName.trim()) return;
@@ -121,6 +122,19 @@ export default function DashboardPage() {
       alert(err.message);
     } finally {
       setDeletingId(null);
+    }
+  };
+
+  const handleLeave = async (roomId: string) => {
+    if (!confirm("Are you sure you want to leave this room?")) return;
+
+    try {
+      await apiFetch(`/rooms/${roomId}/leave`, token, {
+        method: "DELETE",
+      });
+      setRooms((prev) => prev.filter((r) => r.id !== roomId));
+    } catch (err: any) {
+      alert(err.message);
     }
   };
 
@@ -253,9 +267,25 @@ export default function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="font-medium">{room.name}</p>
-                    <p className="text-xs text-gray-500 mt-1">
-                      {room.language} · Created{" "}
-                      {new Date(room.createdAt).toLocaleDateString()}
+                    <p className="text-xs text-gray-500 mt-1 flex items-center gap-2">
+                      <span
+                        className={`px-1.5 py-0.5 rounded text-xs font-medium ${
+                          room.language === "javascript"
+                            ? "bg-yellow-500/20 text-yellow-400"
+                            : room.language === "typescript"
+                              ? "bg-blue-500/20 text-blue-400"
+                              : room.language === "python"
+                                ? "bg-green-500/20 text-green-400"
+                                : room.language === "go"
+                                  ? "bg-cyan-500/20 text-cyan-400"
+                                  : room.language === "rust"
+                                    ? "bg-orange-500/20 text-orange-400"
+                                    : "bg-gray-500/20 text-gray-400"
+                        }`}
+                      >
+                        {room.language}
+                      </span>
+                      Created {new Date(room.createdAt).toLocaleDateString()}
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
@@ -265,7 +295,7 @@ export default function DashboardPage() {
                     >
                       {copiedId === room.id ? "Copied!" : "Copy link"}
                     </button>
-                    {(room.creatorId === user?.id || room.creatorId === "") && (
+                    {room.creatorId === user?.id || room.creatorId === "" ? (
                       <>
                         <button
                           onClick={() => {
@@ -284,6 +314,13 @@ export default function DashboardPage() {
                           {deletingId === room.id ? "Deleting..." : "Delete"}
                         </button>
                       </>
+                    ) : (
+                      <button
+                        onClick={() => handleLeave(room.id)}
+                        className="text-sm text-red-500 hover:text-red-400 transition-colors"
+                      >
+                        Leave
+                      </button>
                     )}
                     <button
                       onClick={() => router.push(`/room/${room.id}`)}

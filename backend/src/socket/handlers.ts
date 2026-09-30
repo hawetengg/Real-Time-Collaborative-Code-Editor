@@ -53,22 +53,25 @@ export const setupSocketHandlers = (io: Server) => {
         }
 
         // Get all connected users in this room
-        const sockets = await io.in(roomId).fetchSockets()
-        const users = sockets.map((s: any) => ({
-          userId: s.data.userId || userId,
-          name: s.data.name || name
-        }))
-
-        // Store user info on socket for later use
+        // Store user info on socket FIRST
         socket.data.userId = userId
         socket.data.name = name
         socket.data.roomId = roomId
+        
+        // NOW get all connected users including this one
+        const sockets = await io.in(roomId).fetchSockets()
+        const users = sockets
+        .filter((s: any) => s.data.userId)
+        .map((s: any) => ({
+          userId: s.data.userId,
+          name: s.data.name
+        }))
 
-        // Send current state to this user
-        socket.emit('room-state', {
-          code: document.content,
-          users
-        })
+// Send current state to this user
+socket.emit('room-state', {
+  code: document.content,
+  users
+})
 
         // Tell everyone else this user joined
         socket.to(roomId).emit('user-joined', {
