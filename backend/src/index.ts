@@ -6,6 +6,7 @@ import dotenv from 'dotenv'
 import authRoutes from './routes/auth.js'
 import roomRoutes from './routes/rooms.js'
 import setupSocketHandlers from './socket/handlers.js'
+import notificationRoutes from './routes/notifications.js'
 
 dotenv.config()
 
@@ -29,6 +30,7 @@ app.use(express.json())
 
 app.use('/api/auth', authRoutes)
 app.use('/api/rooms', roomRoutes)
+app.use('/api/notifications', notificationRoutes)
 
 app.get('/api/health', (_, res) => {
   res.json({ status: 'ok', message: 'Server is running' })

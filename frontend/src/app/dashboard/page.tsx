@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/context/AuthContext";
 import { apiFetch } from "@/lib/api";
+import { createSocket } from "@/lib/socket";
 
 interface Room {
   id: string;
@@ -11,6 +12,16 @@ interface Room {
   language: string;
   createdAt: string;
   creatorId: string;
+  invitedBy: string | null;
+}
+
+interface Notification {
+  id: string;
+  type: string;
+  status: string;
+  room: { id: string; name: string; language: string };
+  sender: { id: string; name: string; email: string };
+  createdAt: string;
 }
 
 export default function DashboardPage() {
@@ -33,35 +44,85 @@ export default function DashboardPage() {
   const [renaming, setRenaming] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
+  const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [showNotifications, setShowNotifications] = useState(false);
+  const notificationRef = useRef<HTMLDivElement>(null);
+  const socketRef = useRef<any>(null);
+
   useEffect(() => {
     if (!isLoading && !token) {
       router.push("/");
     }
   }, [isLoading, token, router]);
 
-    useEffect(() => {
-      if (!token) return;
+  useEffect(() => {
+    if (!token) return;
+    setRoomsLoading(true);
+    const fetchRooms = async () => {
+      try {
+        const data = await apiFetch("/rooms", token);
+        setRooms(data);
+      } catch (err: any) {
+        setRoomsError(err.message);
+      } finally {
+        setRoomsLoading(false);
+      }
+    };
+    fetchRooms();
+  }, [token, isLoading]);
 
-      setRoomsLoading(true);
-      const fetchRooms = async () => {
-        try {
-          const data = await apiFetch("/rooms", token);
-          setRooms(data);
-        } catch (err: any) {
-          setRoomsError(err.message);
-        } finally {
-          setRoomsLoading(false);
-        }
-      };
+  useEffect(() => {
+    if (!token) return;
+    const fetchNotifications = async () => {
+      try {
+        const data = await apiFetch("/notifications", token);
+        setNotifications(data);
+      } catch (err: any) {
+        console.error(err);
+      }
+    };
+    fetchNotifications();
+  }, [token]);
 
-      fetchRooms();
-    }, [token, isLoading]);
+  useEffect(() => {
+    if (!token || !user) return;
+
+    socketRef.current = createSocket();
+    const socket = socketRef.current;
+
+    socket.on("connect", () => {
+      socket.data = { userId: user.id };
+    });
+
+    socket.on("new-notification", (notification: Notification) => {
+      setNotifications((prev) => [notification, ...prev]);
+    });
+
+    socket.connect();
+
+    return () => {
+      socket.off("new-notification");
+      socket.disconnect();
+    };
+  }, [token, user]);
+
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (
+        notificationRef.current &&
+        !notificationRef.current.contains(e.target as Node)
+      ) {
+        setShowNotifications(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleCreateRoom = async () => {
     if (!newRoomName.trim()) return;
     setCreating(true);
     setCreateError(null);
-
     try {
       const data = await apiFetch("/rooms/create", token, {
         method: "POST",
@@ -86,7 +147,6 @@ export default function DashboardPage() {
   const handleRename = async (roomId: string) => {
     if (!editingName.trim()) return;
     setRenaming(true);
-
     try {
       const updated = await apiFetch(`/rooms/${roomId}`, token, {
         method: "PATCH",
@@ -112,11 +172,8 @@ export default function DashboardPage() {
     )
       return;
     setDeletingId(roomId);
-
     try {
-      await apiFetch(`/rooms/${roomId}`, token, {
-        method: "DELETE",
-      });
+      await apiFetch(`/rooms/${roomId}`, token, { method: "DELETE" });
       setRooms((prev) => prev.filter((r) => r.id !== roomId));
     } catch (err: any) {
       alert(err.message);
@@ -127,12 +184,37 @@ export default function DashboardPage() {
 
   const handleLeave = async (roomId: string) => {
     if (!confirm("Are you sure you want to leave this room?")) return;
-
     try {
-      await apiFetch(`/rooms/${roomId}/leave`, token, {
-        method: "DELETE",
-      });
+      await apiFetch(`/rooms/${roomId}/leave`, token, { method: "DELETE" });
       setRooms((prev) => prev.filter((r) => r.id !== roomId));
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleAccept = async (notification: Notification) => {
+    try {
+      await apiFetch(`/notifications/${notification.id}/accept`, token, {
+        method: "POST",
+      });
+      setNotifications((prev) => prev.filter((n) => n.id !== notification.id));
+      const roomData = await apiFetch(`/rooms/${notification.room.id}`, token);
+      setRooms((prev) => {
+        const exists = prev.find((r) => r.id === roomData.id);
+        if (exists) return prev;
+        return [roomData, ...prev];
+      });
+    } catch (err: any) {
+      alert(err.message);
+    }
+  };
+
+  const handleDecline = async (notificationId: string) => {
+    try {
+      await apiFetch(`/notifications/${notificationId}/decline`, token, {
+        method: "POST",
+      });
+      setNotifications((prev) => prev.filter((n) => n.id !== notificationId));
     } catch (err: any) {
       alert(err.message);
     }
@@ -152,6 +234,76 @@ export default function DashboardPage() {
         <h1 className="text-lg font-semibold tracking-tight">CodeSync</h1>
         <div className="flex items-center gap-4">
           <span className="text-sm text-gray-400">{user?.email}</span>
+
+          <div className="relative" ref={notificationRef}>
+            <button
+              onClick={() => setShowNotifications((prev) => !prev)}
+              className="relative text-gray-400 hover:text-white transition-colors"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"
+                />
+              </svg>
+              {notifications.length > 0 && (
+                <span className="absolute -top-1 -right-1 w-4 h-4 bg-indigo-500 rounded-full text-xs flex items-center justify-center text-white">
+                  {notifications.length}
+                </span>
+              )}
+            </button>
+
+            {showNotifications && (
+              <div className="absolute right-0 top-8 w-80 bg-gray-900 border border-gray-800 rounded-xl shadow-xl z-50">
+                <div className="px-4 py-3 border-b border-gray-800">
+                  <p className="text-sm font-semibold">Notifications</p>
+                </div>
+                {notifications.length === 0 ? (
+                  <div className="px-4 py-6 text-center text-gray-500 text-sm">
+                    No pending invites
+                  </div>
+                ) : (
+                  <div className="divide-y divide-gray-800 max-h-80 overflow-y-auto">
+                    {notifications.map((n) => (
+                      <div key={n.id} className="px-4 py-3">
+                        <p className="text-sm text-white">
+                          <span className="font-medium">{n.sender.name}</span>{" "}
+                          invited you to{" "}
+                          <span className="font-medium">{n.room.name}</span>
+                        </p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {n.room.language}
+                        </p>
+                        <div className="flex gap-2 mt-2">
+                          <button
+                            onClick={() => handleAccept(n)}
+                            className="text-xs bg-indigo-600 hover:bg-indigo-500 text-white px-3 py-1 rounded-lg transition-colors"
+                          >
+                            Accept
+                          </button>
+                          <button
+                            onClick={() => handleDecline(n.id)}
+                            className="text-xs text-gray-400 hover:text-white transition-colors"
+                          >
+                            Decline
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
           <button
             onClick={logout}
             className="text-sm text-gray-400 hover:text-white transition-colors"
@@ -218,13 +370,11 @@ export default function DashboardPage() {
         {roomsLoading && (
           <p className="text-gray-500 text-sm">Fetching your rooms...</p>
         )}
-
         {roomsError && (
           <p className="text-red-400 text-sm">
             Failed to load rooms: {roomsError}
           </p>
         )}
-
         {!roomsLoading && !roomsError && rooms.length === 0 && (
           <div className="text-center py-20 text-gray-600">
             <p className="text-lg">No rooms yet</p>
@@ -286,6 +436,11 @@ export default function DashboardPage() {
                         {room.language}
                       </span>
                       Created {new Date(room.createdAt).toLocaleDateString()}
+                      {room.invitedBy && (
+                        <span className="text-gray-600">
+                          · Invited by {room.invitedBy}
+                        </span>
+                      )}
                     </p>
                   </div>
                   <div className="flex items-center gap-4">
@@ -295,7 +450,7 @@ export default function DashboardPage() {
                     >
                       {copiedId === room.id ? "Copied!" : "Copy link"}
                     </button>
-                    {room.creatorId === user?.id || room.creatorId === "" ? (
+                    {room.creatorId === user?.id ? (
                       <>
                         <button
                           onClick={() => {

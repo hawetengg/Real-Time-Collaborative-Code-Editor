@@ -20,7 +20,6 @@ interface RoomData {
 
 export default function RoomPage() {
   const { id } = useParams() as { id: string };
-  console.log("Room ID:", id);
   const { user, token, isLoading } = useAuth();
   const router = useRouter();
 
@@ -29,6 +28,11 @@ export default function RoomPage() {
   const [connectedUsers, setConnectedUsers] = useState<ConnectedUser[]>([]);
   const [typingUsers, setTypingUsers] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
+
+  const [showInvite, setShowInvite] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviting, setInviting] = useState(false);
+  const [inviteMessage, setInviteMessage] = useState<string | null>(null);
 
   const codeRef = useRef(code);
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -44,22 +48,10 @@ export default function RoomPage() {
     if (isLoading || !token || !user || !id) return;
 
     const fetchRoom = async () => {
-      console.log(
-        "fetchRoom fired, token:",
-        token,
-        "user:",
-        user,
-        "id:",
-        id,
-        "isLoading:",
-        isLoading,
-      );
       try {
         const data = await apiFetch(`/rooms/${id}`, token);
-        console.log("room data:", data);
         setRoom(data);
       } catch (err: any) {
-        console.log("fetchRoom error:", err.message);
         setError(err.message);
       }
     };
@@ -106,9 +98,9 @@ export default function RoomPage() {
       setTypingUsers((prev) => prev.filter((name) => name !== data.userId));
     });
 
-    const typingTimers: Record<string, NodeJS.Timeout> = {};
-
     socket.on("user-typing", (data: { name: string }) => {
+      const typingTimers: Record<string, NodeJS.Timeout> = {};
+
       setTypingUsers((prev) =>
         prev.includes(data.name) ? prev : [...prev, data.name],
       );
@@ -164,6 +156,25 @@ export default function RoomPage() {
     }, 1000);
   };
 
+  const handleInvite = async () => {
+    if (!inviteEmail.trim()) return;
+    setInviting(true);
+    setInviteMessage(null);
+    try {
+      await apiFetch("/notifications/invite", token, {
+        method: "POST",
+        body: JSON.stringify({ roomId: id, email: inviteEmail }),
+      });
+      setInviteMessage("Invite sent!");
+      setInviteEmail("");
+      setTimeout(() => setInviteMessage(null), 3000);
+    } catch (err: any) {
+      setInviteMessage(err.message);
+    } finally {
+      setInviting(false);
+    }
+  };
+
   if (isLoading || !room) {
     return (
       <div className="min-h-screen bg-gray-950 flex items-center justify-center">
@@ -195,6 +206,12 @@ export default function RoomPage() {
           <span className="text-xs text-gray-500 bg-gray-800 px-2 py-0.5 rounded">
             {room.language}
           </span>
+          <button
+            onClick={() => setShowInvite((prev) => !prev)}
+            className="text-xs bg-gray-800 hover:bg-gray-700 text-gray-300 px-3 py-1 rounded-lg transition-colors"
+          >
+            {showInvite ? "Cancel" : "Invite"}
+          </button>
         </div>
 
         <div className="flex items-center gap-4">
@@ -216,6 +233,32 @@ export default function RoomPage() {
           </div>
         </div>
       </nav>
+
+      {showInvite && (
+        <div className="border-b border-gray-800 px-6 py-3 flex items-center gap-3 shrink-0">
+          <input
+            type="email"
+            placeholder="Enter email to invite"
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 w-64"
+          />
+          <button
+            onClick={handleInvite}
+            disabled={inviting}
+            className="text-sm bg-indigo-600 hover:bg-indigo-500 disabled:opacity-50 text-white px-4 py-1.5 rounded-lg transition-colors"
+          >
+            {inviting ? "Sending..." : "Send invite"}
+          </button>
+          {inviteMessage && (
+            <span
+              className={`text-sm ${inviteMessage === "Invite sent!" ? "text-green-400" : "text-red-400"}`}
+            >
+              {inviteMessage}
+            </span>
+          )}
+        </div>
+      )}
 
       <div className="flex-1">
         <Editor

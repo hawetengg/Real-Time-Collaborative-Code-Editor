@@ -27,10 +27,7 @@ router.post('/create', verifyToken as any, async (req: AuthRequest, res) => {
     })
 
     await prisma.roomParticipant.create({
-      data: {
-        userId,
-        roomId: room.id
-      }
+      data: { userId, roomId: room.id }
     })
 
     res.json({ room, code })
@@ -45,21 +42,14 @@ router.post('/join', verifyToken as any, async (req: AuthRequest, res) => {
     const { code } = req.body
     const userId = req.userId!
 
-    const room = await prisma.room.findUnique({
-      where: { code }
-    })
+    const room = await prisma.room.findUnique({ where: { code } })
 
     if (!room) {
       return res.status(404).json({ error: 'Room not found' })
     }
 
     const existingParticipant = await prisma.roomParticipant.findUnique({
-      where: {
-        userId_roomId: {
-          userId,
-          roomId: room.id
-        }
-      }
+      where: { userId_roomId: { userId, roomId: room.id } }
     })
 
     if (existingParticipant) {
@@ -67,10 +57,7 @@ router.post('/join', verifyToken as any, async (req: AuthRequest, res) => {
     }
 
     await prisma.roomParticipant.create({
-      data: {
-        userId,
-        roomId: room.id
-      }
+      data: { userId, roomId: room.id }
     })
 
     const document = await prisma.document.findUnique({
@@ -95,9 +82,9 @@ router.patch('/:id', verifyToken as any, async (req: AuthRequest, res) => {
     if (!room) {
       return res.status(404).json({ error: 'Room not found' })
     }
-    
+
     if (room.creatorId !== userId && room.creatorId !== '') {
-      return res.status(403).json({ error: 'Only the creator can delete this room' })
+      return res.status(403).json({ error: 'Only the creator can rename this room' })
     }
 
     const updated = await prisma.room.update({
@@ -122,12 +109,11 @@ router.delete('/:id', verifyToken as any, async (req: AuthRequest, res) => {
     if (!room) {
       return res.status(404).json({ error: 'Room not found' })
     }
-    
+
     if (room.creatorId !== userId && room.creatorId !== '') {
-      return res.status(403).json({ error: 'Only the creator can rename this room' })
+      return res.status(403).json({ error: 'Only the creator can delete this room' })
     }
 
-    // Delete in order: document first, then participants, then room
     await prisma.document.deleteMany({ where: { roomId: id } })
     await prisma.roomParticipant.deleteMany({ where: { roomId: id } })
     await prisma.room.delete({ where: { id } })
@@ -155,9 +141,7 @@ router.delete('/:id/leave', verifyToken as any, async (req: AuthRequest, res) =>
     }
 
     await prisma.roomParticipant.delete({
-      where: {
-        userId_roomId: { userId, roomId: id }
-      }
+      where: { userId_roomId: { userId, roomId: id } }
     })
 
     res.json({ message: 'Left room successfully' })
@@ -205,7 +189,16 @@ router.get('/', verifyToken as any, async (req: AuthRequest, res) => {
       include: { room: true }
     })
 
-    const rooms = participations.map((p: any) => p.room)
+    const rooms = await Promise.all(participations.map(async (p: any) => {
+      const invite = await prisma.notification.findFirst({
+        where: { roomId: p.room.id, receiverId: userId },
+        include: { sender: { select: { name: true } } }
+      })
+      return {
+        ...p.room,
+        invitedBy: invite ? invite.sender.name : null
+      }
+    }))
 
     res.json(rooms)
   } catch (error) {

@@ -125,6 +125,18 @@ socket.emit('room-state', {
       socket.to(roomId).emit('user-typing', { name })
     })
 
+    socket.on('send-invite', async (data: { roomId: string; receiverId: string; notification: any }) => {
+  const { receiverId, notification } = data
+  
+  // Find the socket of the receiver and emit to them directly
+  const sockets = await io.fetchSockets()
+  const receiverSocket = sockets.find((s: any) => s.data.userId === receiverId)
+  
+  if (receiverSocket) {
+    receiverSocket.emit('new-notification', notification)
+  }
+})
+
     socket.on('disconnect', () => {
       console.log(`User disconnected: ${socket.id}`)
       const { userId, roomId } = socket.data

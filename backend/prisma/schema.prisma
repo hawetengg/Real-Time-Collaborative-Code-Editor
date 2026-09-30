@@ -15,6 +15,8 @@ model User {
   createdAt DateTime @default(now())
   rooms     RoomParticipant[]
   documents Document[]
+  sentNotifications     Notification[] @relation("SentNotifications")
+  receivedNotifications Notification[] @relation("ReceivedNotifications")
 }
 
 model Room {
@@ -27,6 +29,7 @@ model Room {
   updatedAt    DateTime @updatedAt
   participants RoomParticipant[]
   document     Document?
+  notifications Notification[]
 }
 
 model RoomParticipant {
@@ -49,4 +52,17 @@ model Document {
   updatedAt DateTime @updatedAt
   room      Room     @relation(fields: [roomId], references: [id])
   user      User     @relation(fields: [userId], references: [id])
+}
+
+model Notification {
+  id         String   @id @default(cuid())
+  type       String   @default("room_invite")
+  roomId     String
+  senderId   String
+  receiverId String
+  status     String   @default("pending")
+  createdAt  DateTime @default(now())
+  room       Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  sender     User     @relation("SentNotifications", fields: [senderId], references: [id])
+  receiver   User     @relation("ReceivedNotifications", fields: [receiverId], references: [id])
 }
