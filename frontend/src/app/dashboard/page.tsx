@@ -10,6 +10,7 @@ interface Room {
   name: string;
   language: string;
   createdAt: string;
+  creatorId: string;
 }
 
 export default function DashboardPage() {
@@ -26,6 +27,11 @@ export default function DashboardPage() {
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const [editingRoomId, setEditingRoomId] = useState<string | null>(null);
+  const [editingName, setEditingName] = useState("");
+  const [renaming, setRenaming] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!isLoading && !token) {
@@ -74,6 +80,48 @@ export default function DashboardPage() {
     navigator.clipboard.writeText(`${window.location.origin}/room/${roomId}`);
     setCopiedId(roomId);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleRename = async (roomId: string) => {
+    if (!editingName.trim()) return;
+    setRenaming(true);
+
+    try {
+      const updated = await apiFetch(`/rooms/${roomId}`, token, {
+        method: "PATCH",
+        body: JSON.stringify({ name: editingName }),
+      });
+      setRooms((prev) =>
+        prev.map((r) => (r.id === roomId ? { ...r, name: updated.name } : r)),
+      );
+      setEditingRoomId(null);
+      setEditingName("");
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setRenaming(false);
+    }
+  };
+
+  const handleDelete = async (roomId: string) => {
+    if (
+      !confirm(
+        "Are you sure you want to delete this room? This cannot be undone.",
+      )
+    )
+      return;
+    setDeletingId(roomId);
+
+    try {
+      await apiFetch(`/rooms/${roomId}`, token, {
+        method: "DELETE",
+      });
+      setRooms((prev) => prev.filter((r) => r.id !== roomId));
+    } catch (err: any) {
+      alert(err.message);
+    } finally {
+      setDeletingId(null);
+    }
   };
 
   if (isLoading) {
@@ -176,29 +224,76 @@ export default function DashboardPage() {
           {rooms.map((room) => (
             <div
               key={room.id}
-              className="bg-gray-900 border border-gray-800 rounded-xl px-6 py-5 flex items-center justify-between hover:border-gray-700 transition-colors"
+              className="bg-gray-900 border border-gray-800 rounded-xl px-6 py-5 hover:border-gray-700 transition-colors"
             >
-              <div>
-                <p className="font-medium">{room.name}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  {room.language} · Created{" "}
-                  {new Date(room.createdAt).toLocaleDateString()}
-                </p>
-              </div>
-              <div className="flex items-center gap-4">
-                <button
-                  onClick={() => handleCopyLink(room.id)}
-                  className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
-                >
-                  {copiedId === room.id ? "Copied!" : "Copy link"}
-                </button>
-                <button
-                  onClick={() => router.push(`/room/${room.id}`)}
-                  className="text-sm text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
-                >
-                  Join
-                </button>
-              </div>
+              {editingRoomId === room.id ? (
+                <div className="flex items-center gap-3">
+                  <input
+                    type="text"
+                    value={editingName}
+                    onChange={(e) => setEditingName(e.target.value)}
+                    className="flex-1 bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-sm text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                    autoFocus
+                  />
+                  <button
+                    onClick={() => handleRename(room.id)}
+                    disabled={renaming}
+                    className="text-sm text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+                  >
+                    {renaming ? "Saving..." : "Save"}
+                  </button>
+                  <button
+                    onClick={() => setEditingRoomId(null)}
+                    className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="font-medium">{room.name}</p>
+                    <p className="text-xs text-gray-500 mt-1">
+                      {room.language} · Created{" "}
+                      {new Date(room.createdAt).toLocaleDateString()}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => handleCopyLink(room.id)}
+                      className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+                    >
+                      {copiedId === room.id ? "Copied!" : "Copy link"}
+                    </button>
+                    {(room.creatorId === user?.id || room.creatorId === "") && (
+                      <>
+                        <button
+                          onClick={() => {
+                            setEditingRoomId(room.id);
+                            setEditingName(room.name);
+                          }}
+                          className="text-sm text-gray-500 hover:text-gray-300 transition-colors"
+                        >
+                          Rename
+                        </button>
+                        <button
+                          onClick={() => handleDelete(room.id)}
+                          disabled={deletingId === room.id}
+                          className="text-sm text-red-500 hover:text-red-400 transition-colors"
+                        >
+                          {deletingId === room.id ? "Deleting..." : "Delete"}
+                        </button>
+                      </>
+                    )}
+                    <button
+                      onClick={() => router.push(`/room/${room.id}`)}
+                      className="text-sm text-indigo-400 hover:text-indigo-300 font-medium transition-colors"
+                    >
+                      Join
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           ))}
         </div>

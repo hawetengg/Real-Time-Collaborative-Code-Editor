@@ -1,7 +1,7 @@
 import { Router } from 'express'
 import { PrismaClient } from '@prisma/client'
 import { verifyToken } from '../middleware/auth.js'
-import type { Request, Response, NextFunction } from 'express'
+import type { Request, Response } from 'express'
 
 const router = Router()
 const prisma = new PrismaClient()
@@ -21,7 +21,8 @@ router.post('/create', verifyToken as any, async (req: AuthRequest, res) => {
       data: {
         name,
         language: language || 'javascript',
-        code
+        code,
+        creatorId: userId
       }
     })
 
@@ -80,6 +81,61 @@ router.post('/join', verifyToken as any, async (req: AuthRequest, res) => {
   } catch (error) {
     console.error(error)
     res.status(500).json({ error: 'Failed to join room' })
+  }
+})
+
+router.patch('/:id', verifyToken as any, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params
+    const { name } = req.body
+    const userId = req.userId!
+
+    const room = await prisma.room.findUnique({ where: { id } })
+
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' })
+    }
+    
+    if (room.creatorId !== userId && room.creatorId !== '') {
+      return res.status(403).json({ error: 'Only the creator can delete this room' })
+    }
+
+    const updated = await prisma.room.update({
+      where: { id },
+      data: { name }
+    })
+
+    res.json(updated)
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ error: 'Failed to rename room' })
+  }
+})
+
+router.delete('/:id', verifyToken as any, async (req: AuthRequest, res) => {
+  try {
+    const { id } = req.params
+    const userId = req.userId!
+
+    const room = await prisma.room.findUnique({ where: { id } })
+
+    if (!room) {
+      return res.status(404).json({ error: 'Room not found' })
+    }
+    
+    if (room.creatorId !== userId && room.creatorId !== '') {
+      return res.status(403).json({ error: 'Only the creator can rename this room' })
+    }
+
+    // Delete in order: document first, then participants, then room
+    await prisma.document.deleteMany({ where: { roomId: id } })
+    await prisma.roomParticipant.deleteMany({ where: { roomId: id } })
+    await prisma.room.delete({ where: { id } })
+
+    res.json({ message: 'Room deleted' })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ error: 'Failed to delete room' })
   }
 })
 
