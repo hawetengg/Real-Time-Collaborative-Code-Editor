@@ -12,14 +12,19 @@ dotenv.config()
 const app = express()
 const httpServer = createServer(app)
 
+const allowedOrigins = [
+  'http://localhost:3000',
+  'https://real-time-collaborative-code-editor-neon.vercel.app'
+]
+
 const io = new Server(httpServer, {
   cors: {
-    origin: 'http://localhost:3000',
+    origin: allowedOrigins,
     methods: ['GET', 'POST']
   }
 })
 
-app.use(cors({ origin: 'http://localhost:3000' }))
+app.use(cors({ origin: allowedOrigins }))
 app.use(express.json())
 
 app.use('/api/auth', authRoutes)
@@ -30,14 +35,6 @@ app.get('/api/health', (_, res) => {
 })
 
 setupSocketHandlers(io)
-
-// io.on('connection', (socket) => {
-//   console.log(`User connected: ${socket.id}`)
-
-//   socket.on('disconnect', () => {
-//     console.log(`User disconnected: ${socket.id}`)
-//   })
-// })
 
 const PORT = process.env['PORT'] || 5000
 httpServer.listen(PORT, () => {
